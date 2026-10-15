@@ -1,16 +1,15 @@
+
 pipeline {
     agent any
+
+    environment {
+        CF_PROJECT = 'devops-test1-hothithang'
+    }
 
     stages {
         stage('Checkout') {
             steps {
                 echo 'Source code checked out from GitHub'
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                echo 'Static HTML website: no dependencies required'
             }
         }
 
@@ -23,17 +22,53 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                echo 'Build passed. Ready to deploy website.'
+                withCredentials([
+                    string(credentialsId: 'cloudflare-api-token',
+                           variable: 'CLOUDFLARE_API_TOKEN'),
+                    string(credentialsId: 'cloudflare-account-id',
+                           variable: 'CLOUDFLARE_ACCOUNT_ID')
+                ]) {
+                    sh '''
+                        npx --yes wrangler@latest pages deploy . \
+                          --project-name="$CF_PROJECT" \
+                          --branch=main
+                    '''
+                }
             }
         }
     }
 
     post {
         success {
-            echo 'BUILD SUCCESS'
+            withCredentials([
+                string(credentialsId: 'telegram-bot-token',
+                       variable: 'TELEGRAM_BOT_TOKEN'),
+                string(credentialsId: 'telegram-chat-id',
+                       variable: 'TELEGRAM_CHAT_ID')
+            ]) {
+                sh '''
+                    curl -fsS -X POST \
+                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+                      --data-urlencode "text=CI/CD SUCCESS: Website deployed to https://devops-test1-hothithang.pages.dev"
+                '''
+            }
         }
+
         failure {
-            echo 'BUILD FAILED'
+            withCredentials([
+                string(credentialsId: 'telegram-bot-token',
+                       variable: 'TELEGRAM_BOT_TOKEN'),
+                string(credentialsId: 'telegram-chat-id',
+                       variable: 'TELEGRAM_CHAT_ID')
+            ]) {
+                sh '''
+                    curl -fsS -X POST \
+                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+                      --data-urlencode "text=CI/CD FAILED: Check Jenkins console output."
+                '''
+            }
         }
     }
 }

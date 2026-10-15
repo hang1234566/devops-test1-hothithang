@@ -4,7 +4,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Source code is checked out from GitHub'
+                echo 'Source code checked out from GitHub'
             }
         }
 
@@ -16,7 +16,8 @@ pipeline {
 
         stage('Build') {
             steps {
-                bat 'if exist index.html (echo Build Success) else (exit /b 1)'
+                sh 'test -f index.html'
+                echo 'Build Success'
             }
         }
 
